@@ -1,139 +1,216 @@
 package com.example.quiz;
 
+import static android.widget.Toast.LENGTH_SHORT;
+
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.content.res.Resources;
-import android.icu.text.NumberFormat;
+import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-
-import androidx.appcompat.app.AppCompatActivity;
-
 public class QuizActivity extends AppCompatActivity {
+    private static final String KEY_IDX = "CurIdx";
+    public static final int REQ_SHOW_ANSWER = 0x0F01;
+    private TextView mTvQuestion;
+    private Button mBtnTrue;
+    private Button mBtnFalse;
+    private Button mBtnPrev;
+    private Button mBtnNext;
+    private Button mBtnCheat;
+    public static Question[] sQuestionBank = new Question[] {
+            new Question(R.string.question_australia, true),
+            new Question(R.string.question_oceans, true),
+            new Question(R.string.question_mideast, true),
+            new Question(R.string.question_africa, true),
+    };
+    private int mCurIdx = 0;
+    // 03 方法配套
+    private ActivityResultLauncher<Intent> register;
 
-    private Button mTrueButton;
-    private Button mFalseButton;
-    private Button mNextButton;
-    private TextView mQuestionTextView;
-    private Question[] mQuestionBank;
-    private int mCurrentIndex = 0;
-    private int[] flag;   //答题情况，0未答，1正确，2错误
-
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(KEY_IDX, mCurIdx);
+        Log.d("GeoQuizLog", "onSaveInstanceState CurIdx:"+mCurIdx+"@"+System.identityHashCode(this));
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_quiz);
-
-        //初始化问题数组
-        Resources res = getResources();
-        String[] questions = res.getStringArray(R.array.questions);
-        String[] answers = res.getStringArray(R.array.answers);
-        int length = questions.length;
-        mQuestionBank = new Question[length];
-        for (int i = 0; i < length; i++) {
-            mQuestionBank[i] = new Question(questions[i], answers[i]);
+        if (savedInstanceState != null)
+        {
+            mCurIdx = savedInstanceState.getInt(KEY_IDX);
+            Log.d("GeoQuizLog", "from savedInstanceState CurIdx:"+mCurIdx+"@"+System.identityHashCode(this));
         }
-        //初始化答题情况数组
-        flag = new int[length];
 
-        //引用文本框，将其设置为问题内容
-        mQuestionTextView = (TextView) findViewById(R.id.question_text_view);
-        updateQuestion();
+        mTvQuestion = findViewById(R.id.txtQuestion);
+        mBtnTrue = findViewById(R.id.btnTrue);
+        mBtnFalse = findViewById(R.id.btnFalse);
+        mBtnPrev = findViewById(R.id.btnPrev);
+        mBtnNext = findViewById(R.id.btnNext);
+        mBtnCheat = findViewById(R.id.btn_cheat);
 
-        //正确按钮
-        mTrueButton = (Button) findViewById(R.id.true_button);
-        mTrueButton.setOnClickListener(new View.OnClickListener() {
+        mTvQuestion.setText(sQuestionBank[mCurIdx].getTextResId());
+        Log.d("GeoQuizLog", "onCreate CurIdx:"+mCurIdx+"@"+System.identityHashCode(this));
+        mBtnTrue.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
                 checkAnswer(true);
-                if (flag[mCurrentIndex] != 0) {        //已答题
-                    mTrueButton.setEnabled(false);       //禁掉作答按钮
-                    mFalseButton.setEnabled(false);
-                }
             }
         });
-        //错误按钮
-        mFalseButton = (Button) findViewById(R.id.false_button);
-        mFalseButton.setOnClickListener(new View.OnClickListener() {
+        mBtnFalse.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
                 checkAnswer(false);
-                if (flag[mCurrentIndex] != 0) {        //已答题
-                    mTrueButton.setEnabled(false);       //禁掉作答按钮
-                    mFalseButton.setEnabled(false);
-                }
             }
         });
-        //设置next按钮
-        mNextButton = (Button) findViewById(R.id.next_button);//下一题
-        mNextButton.setOnClickListener(new View.OnClickListener() {
+        mBtnNext.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
-                if (mCurrentIndex < mQuestionBank.length - 1)
-                    mCurrentIndex = (mCurrentIndex + 1) % mQuestionBank.length;
-                updateQuestion();
-                if (flag[mCurrentIndex] == 0) {   //按钮解禁
-                    mTrueButton.setEnabled(true);
-                    mFalseButton.setEnabled(true);
-                } else {
-                    mTrueButton.setEnabled(false);       //禁掉作答按钮
-                    mFalseButton.setEnabled(false);
-                }
+            public void onClick(View view) {
+                mCurIdx = (mCurIdx + 1) % sQuestionBank.length;
+                Log.d("GeoQuizLog", "btnNext CurIdx:"+mCurIdx+"@"+System.identityHashCode(this));
+                mTvQuestion.setText(sQuestionBank[mCurIdx].getTextResId());
             }
         });
-        Button mPreButton = (Button) findViewById(R.id.pre_button);//上一题
-        mPreButton.setOnClickListener(new View.OnClickListener() {
+        mBtnPrev.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
-                if (mCurrentIndex > 0)
-                    mCurrentIndex = (mCurrentIndex - 1) % mQuestionBank.length;
-                updateQuestion();
-                if (flag[mCurrentIndex] == 0) {   //按钮解禁
-                    mTrueButton.setEnabled(true);
-                    mFalseButton.setEnabled(true);
-                } else {
-                    mTrueButton.setEnabled(false);       //禁掉作答按钮
-                    mFalseButton.setEnabled(false); //禁掉作答按钮
+            public void onClick(View view) {
+                if (mCurIdx == 0) {
+                    mCurIdx = sQuestionBank.length - 1;
                 }
+                else {
+                    mCurIdx = (mCurIdx - 1) % sQuestionBank.length;
+                }
+                Log.d("GeoQuizLog", "btnPrev CurIdx:"+mCurIdx+"@"+System.identityHashCode(this));
+                mTvQuestion.setText(sQuestionBank[mCurIdx].getTextResId());
             }
         });
+        register = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                new ActivityResultCallback<ActivityResult>() {
+                    @Override
+                    public void onActivityResult(ActivityResult result) {
+                        if (result != null) {
+                            Intent data = result.getData();
+                            if (data != null && result.getResultCode() == RESULT_OK) {
+                                boolean isCheated =
+                                        data.getBooleanExtra(CheatActivity.IS_CHEATED,
+                                                false);
+                                if (isCheated) {
+                                    Toast.makeText(getApplicationContext(), "使用答案提示", LENGTH_SHORT).show();
+                                } else {
+                                    Toast.makeText(getApplicationContext(), "没有使用答案提示", LENGTH_SHORT).show();
+                                }
+                            }
+                            else {
+                                Toast.makeText(getApplicationContext(), "从CheatAcitivity返回", LENGTH_SHORT).show();
+                            }
+                        }
+                    }
+                });
+        mBtnCheat.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent =
+                        new Intent(QuizActivity.this,CheatActivity.class);
+                //intent.putExtra(ANSWER_CHEAT, sQuestionBank[mCurrentIdx].isAnswerTrue());
+                intent.putExtra(CheatActivity.CHEAT_IDX, mCurIdx);
+                // 01 不需要回传数据
+                //startActivity(intent);
+                // 02 需要回传数据，但是Google已经废弃了startActivityForResult和onActivityResult方法。
+                // startActivityForResult(intent, REQ_SHOW_ANSWER);
+                // 03 需要回传数据，用新版的ActivityResultContract和ActivityResultLauncher
+                register.launch(intent);
 
-    }
-
-    //更新问题
-    private void updateQuestion() {
-        String question = mQuestionBank[mCurrentIndex].getQuestionString();
-        mQuestionTextView.setText(question);
-    }
-
-    //判断答案对错
-    private void checkAnswer(boolean userPressedTrue) {
-        boolean answerIsTrue = Boolean.parseBoolean(mQuestionBank[mCurrentIndex].getAnswerString());
-        int messageResId = 0;
-        if (userPressedTrue == answerIsTrue) {
-            messageResId = R.string.correct_toast;
-            flag[mCurrentIndex] = 1;   //记录
-        } else {
-            messageResId = R.string.incorrect_toast;
-            flag[mCurrentIndex] = 2;    //记录
-        }
-        Toast.makeText(this, messageResId, Toast.LENGTH_SHORT).show();
-        if (mCurrentIndex == mQuestionBank.length - 1) {  //答题完毕
-            double trueNum = 0;
-            for (int i = 0; i < flag.length; i++) {
-                if (flag[i] == 1)
-                    trueNum++;
             }
-            trueNum = trueNum / (mQuestionBank.length * 1.0);   //正确率
-            NumberFormat format = NumberFormat.getPercentInstance();
-            format.setMaximumFractionDigits(2);//设置保留几位小数
-            System.out.println("百分比为：" + format.format(trueNum));
-            Toast.makeText(this, "正确率:" + format.format(trueNum), Toast.LENGTH_SHORT).show();
+        });
+    }
+    // 02 配套
+    /*
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQ_SHOW_ANSWER) {
+            if (resultCode == RESULT_OK) {
+                if (data != null) {
+                    boolean isCheated =
+                            data.getBooleanExtra(CheatActivity.IS_CHEATED,
+                                    false);
+                    if (isCheated) {
+                        Toast.makeText(getApplicationContext(), "使用答案提示", LENGTH_SHORT).show();
+                    }
+                    else {
+                        Toast.makeText(getApplicationContext(), "没有使用答案提示", LENGTH_SHORT).show();
+                    }
+                }
+            }
+            else {
+                Toast.makeText(getApplicationContext(), "从CheatAcitivity返回", LENGTH_SHORT).show();
+            }
+        }
+
+    }
+
+     */
+    private void checkAnswer(boolean answer) {
+        if (sQuestionBank[mCurIdx].isAnswerTrue() == answer) {
+            Toast.makeText(QuizActivity.this,
+                    R.string.answer_right,
+                    LENGTH_SHORT
+            ).show();
+        }
+        else {
+            Toast.makeText(QuizActivity.this,
+                    R.string.answer_incorrect,
+                    LENGTH_SHORT
+            ).show();
         }
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("GeoQuizLog","OnStart"+"@"+System.identityHashCode(this));
+    }
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        Log.d("GeoQuizLog","onRestart"+"@"+System.identityHashCode(this));
+
+    }
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("GeoQuizLog","onStop"+"@"+System.identityHashCode(this));
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d("GeoQuizLog","onDestroy"+"@"+System.identityHashCode(this));
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("GeoQuizLog","onPause"+"@"+System.identityHashCode(this));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("GeoQuizLog","onResume"+"@"+System.identityHashCode(this));
+    }
+
+
 }
-
